@@ -2,8 +2,10 @@ package de.iltisauge.transport.network;
 
 import java.util.List;
 
+import de.iltisauge.transport.Transport;
 import de.iltisauge.transport.utils.PacketUtil;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.EmptyByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
 
@@ -11,6 +13,9 @@ public class MessageDecoder extends ByteToMessageDecoder {
 
 	@Override
 	protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
+		if (in instanceof EmptyByteBuf) {
+			return;
+		}
 		final String clazzName = PacketUtil.readString(in);
 		final Class<?> clazz = Class.forName(clazzName);
 		final int length = in.readInt();

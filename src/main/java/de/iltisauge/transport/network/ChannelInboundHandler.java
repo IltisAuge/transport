@@ -2,8 +2,10 @@ package de.iltisauge.transport.network;
 
 import java.io.IOException;
 import java.net.SocketAddress;
+import java.net.SocketException;
 import java.util.List;
 
+import de.iltisauge.transport.Transport;
 import de.iltisauge.transport.client.NetworkClient;
 import de.iltisauge.transport.utils.CastUtil;
 import io.netty.channel.Channel;
@@ -30,24 +32,30 @@ public class ChannelInboundHandler extends SimpleChannelInboundHandler<IMessage>
 		if (networkClient != null) {
 			networkClient.setSession(session);
 		}
-		System.out.println("Registered session " + session);
+	}
+	
+	@Override
+	public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+		final ISession session = getSession(ctx);
+		final Transport instance = Transport.getInstance();
+		final NetworkManager networkManager = instance.getNetworkManager();
+		networkManager.unregisterSession(session);
+		final NetworkClient networkClient = instance.getNetworkClient();
+		if (networkClient != null) {
+			networkClient.setSession(null);
+		}
+		networkManager.onSessionInactive(session);
 	}
 	
 	@Override
 	public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-		if (cause instanceof IOException) {
-			final ISession session = getSession(ctx);
-			final Transport instance = Transport.getInstance();
-			final NetworkManager networkManager =instance.getNetworkManager();
-			networkManager.unregisterSession(session);
-			final NetworkClient networkClient = instance.getNetworkClient();
-			if (networkClient != null) {
-				networkClient.setSession(null);
-			}
-			System.out.println("Unregistered session " + session);
+		if ((cause instanceof IOException || cause instanceof SocketException)
+				&& (cause.getMessage().equals("Connection reset")
+					|| cause.getMessage().equals("Connection reset by peer")
+					|| cause.getMessage().equals("Eine vorhandene Verbindung wurde vom Remotehost geschlossen"))) {
 			return;
 		}
-		super.exceptionCaught(ctx, cause);
+		cause.printStackTrace();
 	}
 
 	public static Session getSession(ChannelHandlerContext ctx) {

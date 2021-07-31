@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import de.iltisauge.transport.Transport;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
@@ -23,7 +24,6 @@ public class Message implements IMessage {
 	
 	@Override
 	public boolean send(String... channels) {
-		//return PacketTransport.getAPI().getNetworkClient().send(this, channels);
-		return true;
+		return Transport.getInstance().getNetworkClient().send(this, channels);
 	}
 }

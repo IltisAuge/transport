@@ -9,10 +9,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import de.iltisauge.transport.packets.HandleSubscriptionsMessage;
-import de.iltisauge.transport.packets.HandleSubscriptionsMessage.HandleSubscriptionType;
-import de.iltisauge.transport.packets.TextMessage;
-import de.iltisauge.transport.utils.Util;
+import de.iltisauge.transport.messages.HandleSubscriptionsMessage;
+import de.iltisauge.transport.messages.HandleSubscriptionsMessage.HandleSubscriptionType;
+import de.iltisauge.transport.messages.TextMessage;
 import io.netty.channel.Channel;
 
 public class NetworkManager {
@@ -137,6 +136,7 @@ public class NetworkManager {
 		lock.writeLock().lock();
 		try {
 			sessions.put(session.getChannel(), session);
+			System.out.println("Registered session " + session);
 		} finally {
 			lock.writeLock().unlock();
 		}
@@ -146,6 +146,7 @@ public class NetworkManager {
 		lock.writeLock().lock();
 		try {
 			sessions.remove(session.getChannel());
+			System.out.println("Unregistered session " + session);
 		} finally {
 			lock.writeLock().unlock();
 		}
@@ -184,7 +185,6 @@ public class NetworkManager {
 	}
 	
 	public void addSubscriptions(String... channels) {
-		System.out.println("Adding subs to " + Util.arrayToLine(channels));
 		subscriptions.addAll(Arrays.asList(channels));
 		final HandleSubscriptionsMessage packet = new HandleSubscriptionsMessage(HandleSubscriptionType.ADD, channels);
 		packet.send("handle-subscriptions");

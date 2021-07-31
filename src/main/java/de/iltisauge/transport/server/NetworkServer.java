@@ -8,12 +8,15 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 
+import de.iltisauge.transport.Transport;
+import de.iltisauge.transport.messages.HandleSubscriptionsMessage;
+import de.iltisauge.transport.messages.HandleSubscriptionsMessage.HandleSubscriptionType;
 import de.iltisauge.transport.network.ChannelInitializer;
 import de.iltisauge.transport.network.IMessage;
+import de.iltisauge.transport.network.IMessageEvent;
 import de.iltisauge.transport.network.ISession;
 import de.iltisauge.transport.network.NetworkDevice;
 import de.iltisauge.transport.network.NetworkManager;
-import de.iltisauge.transport.network.Transport;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelOption;
@@ -28,52 +31,6 @@ import lombok.RequiredArgsConstructor;
 @Getter
 public class NetworkServer {
 	
-	/*public static void main(String[] args) throws Exception {
-		int port = -1;
-		System.out.println("Gebe den Startport an:");
-		final BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
-		while (port == -1) {
-			final String line = reader.readLine();
-			if (!Utils.isNumberic(line)) {
-				System.out.println("Gebe eine gültige Zahl als Startport an:");
-				continue;
-			}
-			port = Integer.valueOf(line);
-		}
-		final PacketTransportAPI api = new PacketTransportAPI();
-		api.initialize();
-		PacketTransport.setAPI(api);
-		final SubcriptionManager subcriptionManager = new SubcriptionManager();
-		final INetworkManager networkManager = api.getNetworkManager();
-		networkManager.registerDefaultCodecs();
-		final NetworkServer networkServer = new NetworkServer(subcriptionManager, new InetSocketAddress("127.0.0.1", port));
-		networkServer.initialize();
-		networkServer.start();
-		networkManager.registerEvent(new IPacketEvent<IPacket>() {
-			
-			@Override
-			public void onReceived(IPacket packet) {
-				if (packet instanceof HandleSubscriptionsPacket) {
-					return;
-				}
-				System.out.println("Packet from " + packet.getFrom());
-				networkServer.sendPacket(packet, packet.getChannels().toArray(new String[packet.getChannels().size()]));
-			}
-		});
-		networkManager.registerEvent(HandleSubscriptionsPacket.class, new IPacketEvent<HandleSubscriptionsPacket>() {
-			
-			@Override
-			public void onReceived(HandleSubscriptionsPacket packet) {
-				final HandleSubscriptionType handleSubscriptionType = packet.getHandleSubscriptionType();
-				if (handleSubscriptionType.equals(HandleSubscriptionType.ADD)) {
-					subcriptionManager.addSubscriptions(packet.getFrom(), packet.getChannelsToSubscribe());
-				} else if (handleSubscriptionType.equals(HandleSubscriptionType.REMOVE)) {
-					subcriptionManager.removeSubscriptions(packet.getFrom(), packet.getChannelsToSubscribe());
-				}
-			}
-		});
-	}*/
-	
 	public static void main(String[] args) {
 		final NetworkServer server = new NetworkServer(new SubcriptionManager(), new InetSocketAddress("127.0.0.1", 5001));
 		server.initialize();
@@ -87,6 +44,9 @@ public class NetworkServer {
 	private ServerBootstrap serverBootstrap = null;
 	
 	public void initialize() {
+		final NetworkManager networkManager = new ServerNetworkManager(this);
+		networkManager.registerDefaultCodecs();
+		Transport.getInstance().setNetworkManager(networkManager);
 		new Thread(new Runnable() {
 			
 			@Override
@@ -95,15 +55,9 @@ public class NetworkServer {
 				String line = null;
 				try {
 					while ((line = reader.readLine()) != null) {
-						System.out.println("line " + line);
 						if (line.startsWith("stop")) {
 							System.exit(0);
-						}/* else if (line.startsWith("bc")) {
-							System.out.println("Broadcasting..");
-							final TestPacket packet = new TestPacket(line.substring(3));
-							packet.addChannels("text-message");
-							sendPacketToAllSessions(packet);
-						}*/
+						}
 					}
 				} catch (IOException exception) {
 					exception.printStackTrace();
@@ -120,10 +74,43 @@ public class NetworkServer {
 		final ChannelInitializer channelInitializer = new ChannelInitializer(NetworkDevice.SERVER);
 		serverBootstrap.handler(channelInitializer);
 		serverBootstrap.childHandler(channelInitializer);
+		networkManager.registerEvent(new IMessageEvent<IMessage>() {
+			
+			@Override
+			public void onReceived(IMessage message) {
+				if (message instanceof HandleSubscriptionsMessage) {
+					return;
+				}
+				if (message.getChannels().size() == 0) {
+					broadcastMessage(message);
+					return;
+				} 
+				sendMessage(message, message.getChannels().toArray(new String[message.getChannels().size()]));
+			}
+		});
+		networkManager.registerEvent(HandleSubscriptionsMessage.class, new IMessageEvent<HandleSubscriptionsMessage>() {
+			
+			@Override
+			public void onReceived(HandleSubscriptionsMessage message) {
+				final HandleSubscriptionType handleSubscriptionType = message.getHandleSubscriptionType();
+				if (handleSubscriptionType.equals(HandleSubscriptionType.ADD)) {
+					subcriptionManager.addSubscriptions(message.getFrom(), message.getChannelsToSubscribe());
+				} else if (handleSubscriptionType.equals(HandleSubscriptionType.REMOVE)) {
+					subcriptionManager.removeSubscriptions(message.getFrom(), message.getChannelsToSubscribe());
+				}
+			}
+		});
 	}
 
 	public boolean start() {
-		return serverBootstrap.bind(address).addListener(new GenericFutureListener<Future<? super Void>>() {
+		Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
+			
+			@Override
+			public void run() {
+				shutdown();
+			}
+		}));
+		return serverBootstrap.bind(address).syncUninterruptibly().addListener(new GenericFutureListener<Future<? super Void>>() {
 		
 			public void operationComplete(Future<? super Void> future) throws Exception {
 				if (future.cause() != null) {
@@ -138,20 +125,19 @@ public class NetworkServer {
 		System.out.println("Successfully binded NetworkServer to " + address.toString());
 	}
 	
-	public void sendPacketToAllSessions(IMessage packet) {
+	public void broadcastMessage(IMessage message) {
 		for (ISession session : Transport.getInstance().getNetworkManager().getSessions()) {
-			System.out.println("Send packet to session " + session);
-			session.send(packet);
+			session.send(message);
 		}
 	}
 	
-	public void sendPacket(IMessage packet, String... channels) {
+	public void sendMessage(IMessage message, String... channels) {
 		final NetworkManager networkManager = Transport.getInstance().getNetworkManager();
 		final Map<Channel, Set<String>> subscriptions = subcriptionManager.getSubscriptions();
-		for (String channel : packet.getChannels()) {
+		for (String channel : message.getChannels()) {
 			for (Entry<Channel, Set<String>> entry : subscriptions.entrySet()) {
 				if (entry.getValue().contains(channel)) {
-					networkManager.getSession(entry.getKey()).send(packet);
+					networkManager.getSession(entry.getKey()).send(message);
 				}
 			}
 		}

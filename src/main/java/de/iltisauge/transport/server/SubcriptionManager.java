@@ -10,7 +10,6 @@ import java.util.Set;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import de.iltisauge.transport.network.ISession;
-import de.iltisauge.transport.utils.Util;
 import io.netty.channel.Channel;
 import lombok.Getter;
 
@@ -29,7 +28,6 @@ public class SubcriptionManager {
 			} else {
 				subscriptions.put(channel, new HashSet<String>(Arrays.asList(channels)));
 			}
-			System.out.println("Added subscriptions (" + Util.arrayToLine(channels) + ") for channel " + channel);
 		} finally {
 			lock.writeLock().unlock();
 		}
@@ -42,7 +40,6 @@ public class SubcriptionManager {
 			if (subscriptions.containsKey(channel)) {
 				subscriptions.get(channel).removeAll(Arrays.asList(channels));
 			}
-			System.out.println("Removed subscriptions (" + Util.arrayToLine(channels) + ") for channel " + channel);
 		} finally {
 			lock.writeLock().unlock();
 		}
@@ -53,7 +50,6 @@ public class SubcriptionManager {
 		lock.writeLock().lock();
 		try {
 			subscriptions.remove(channel);
-			System.out.println("Removed all subscriptions for session " + session);
 		} finally {
 			lock.writeLock().unlock();
 		}

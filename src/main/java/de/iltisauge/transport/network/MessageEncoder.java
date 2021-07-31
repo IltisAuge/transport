@@ -1,5 +1,6 @@
 package de.iltisauge.transport.network;
 
+import de.iltisauge.transport.Transport;
 import de.iltisauge.transport.utils.PacketUtil;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;

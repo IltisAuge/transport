@@ -1,4 +1,4 @@
-package de.iltisauge.transport.packets;
+package de.iltisauge.transport.messages;
 
 import de.iltisauge.transport.network.IMessageCodec;
 import de.iltisauge.transport.network.Message;
