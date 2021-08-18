@@ -77,7 +77,7 @@ public class NetworkClient {
 			
 			@Override
 			public void onReceived(TextMessage message) {
-				System.out.println("Message: " + message.getText());
+				System.out.println("Message from " + message.getFrom().getClientAddress().toString() + ": " + message.getText());
 			}
 		});
 	}
@@ -102,7 +102,7 @@ public class NetworkClient {
 						future.cause().printStackTrace();
 						return;
 					}
-					onStarted();
+					onConnected();
 				};
 			}).isSuccess();
 		} catch (Exception exception) {
@@ -114,7 +114,7 @@ public class NetworkClient {
 		return false;
 	}
 	
-	public void onStarted() {
+	public void onConnected() {
 		System.out.println("Successfully connected to NetworkServer on " + address.toString());
 	}
 	

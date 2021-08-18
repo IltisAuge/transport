@@ -17,11 +17,9 @@ public class Transport {
 	}
 
 	@Getter
+	@Setter
 	private NetworkManager networkManager = new NetworkManager();
 	
-	public void setNetworkManager(NetworkManager networkManager) {
-		this.networkManager = networkManager;
-	}
 	/**
 	 * Can be null if this instance runs a server.
 	 */
