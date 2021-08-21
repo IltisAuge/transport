@@ -1,31 +1,28 @@
 package de.iltisauge.transport.network;
 
 import java.io.IOException;
-import java.net.SocketAddress;
 import java.net.SocketException;
 import java.util.List;
 
 import de.iltisauge.transport.Transport;
 import de.iltisauge.transport.client.NetworkClient;
 import de.iltisauge.transport.utils.CastUtil;
-import io.netty.channel.Channel;
+import de.iltisauge.transport.utils.Util;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
+import lombok.RequiredArgsConstructor;
 
+@RequiredArgsConstructor
 public class ChannelInboundHandler extends SimpleChannelInboundHandler<IMessage> {
 
-	private static NetworkDevice NETWORK_DEVICE;
-	
-	public ChannelInboundHandler(NetworkDevice networkDevice) {
-		NETWORK_DEVICE = networkDevice;
-	}
+	private final NetworkDevice networkDevice;
 	
 	@Override
 	public void channelActive(ChannelHandlerContext ctx) throws Exception {
 		if (ctx.channel().remoteAddress() == null) {
 			return;
 		}
-		final ISession session = getSession(ctx);
+		final ISession session = Util.getSession(ctx, networkDevice);
 		final Transport instance = Transport.getInstance();
 		instance.getNetworkManager().registerSession(session);
 		final NetworkClient networkClient = instance.getNetworkClient();
@@ -36,7 +33,7 @@ public class ChannelInboundHandler extends SimpleChannelInboundHandler<IMessage>
 	
 	@Override
 	public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-		final ISession session = getSession(ctx);
+		final ISession session = Util.getSession(ctx, networkDevice);
 		final Transport instance = Transport.getInstance();
 		final NetworkManager networkManager = instance.getNetworkManager();
 		networkManager.unregisterSession(session);
@@ -56,20 +53,6 @@ public class ChannelInboundHandler extends SimpleChannelInboundHandler<IMessage>
 			return;
 		}
 		cause.printStackTrace();
-	}
-
-	public static Session getSession(ChannelHandlerContext ctx) {
-		final Channel channel = ctx.channel();
-		SocketAddress clientAddress = null;
-		SocketAddress serverAddress = null;
-		if (NETWORK_DEVICE.equals(NetworkDevice.SERVER)) {
-			clientAddress = channel.remoteAddress();
-			serverAddress = channel.localAddress();
-		} else if (NETWORK_DEVICE.equals(NetworkDevice.CLIENT)) {
-			clientAddress = channel.localAddress();
-			serverAddress = channel.remoteAddress();
-		}
-		return new Session(channel, clientAddress, serverAddress);
 	}
 	
 	@Override

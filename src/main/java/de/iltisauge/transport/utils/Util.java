@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.math.BigInteger;
+import java.net.SocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.SecureRandom;
@@ -19,6 +20,10 @@ import org.json.simple.JSONObject;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
+import de.iltisauge.transport.network.NetworkDevice;
+import de.iltisauge.transport.network.Session;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandlerContext;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -267,5 +272,19 @@ public final class Util {
 		} catch (IOException exception) {
 			Logger.getGlobal().log(Level.WARNING, "Error while creating config file:", exception);
 		}
+	}
+	
+	public static Session getSession(ChannelHandlerContext ctx, NetworkDevice networkDevice) {
+		final Channel channel = ctx.channel();
+		SocketAddress clientAddress = null;
+		SocketAddress serverAddress = null;
+		if (networkDevice.equals(NetworkDevice.SERVER)) {
+			clientAddress = channel.remoteAddress();
+			serverAddress = channel.localAddress();
+		} else if (networkDevice.equals(NetworkDevice.CLIENT)) {
+			clientAddress = channel.localAddress();
+			serverAddress = channel.remoteAddress();
+		}
+		return new Session(channel, clientAddress, serverAddress);
 	}
 }

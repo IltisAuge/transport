@@ -4,12 +4,17 @@ import java.util.List;
 
 import de.iltisauge.transport.Transport;
 import de.iltisauge.transport.utils.PacketUtil;
+import de.iltisauge.transport.utils.Util;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.EmptyByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
+import lombok.RequiredArgsConstructor;
 
+@RequiredArgsConstructor
 public class MessageDecoder extends ByteToMessageDecoder {
+
+	private final NetworkDevice networkDevice;
 
 	@Override
 	protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
@@ -26,7 +31,7 @@ public class MessageDecoder extends ByteToMessageDecoder {
 		final IMessageCodec<?> codec = Transport.getInstance().getNetworkManager().getCodec(clazz);
 		if (codec != null) {
 			final IMessage packet = (IMessage) codec.read(in);
-			packet.setFrom(ChannelInboundHandler.getSession(ctx));
+			packet.setFrom(Util.getSession(ctx, networkDevice));
 			packet.addChannels(channels);
 			out.add(packet);
 		}

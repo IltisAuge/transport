@@ -10,6 +10,6 @@ public class ChannelInitializer extends io.netty.channel.ChannelInitializer<Chan
 	
 	@Override
 	protected void initChannel(Channel ch) throws Exception {
-		ch.pipeline().addLast(new MessageEncoder(), new MessageDecoder(), new ChannelInboundHandler(networkDevice));
+		ch.pipeline().addLast(new MessageEncoder(), new MessageDecoder(networkDevice), new ChannelInboundHandler(networkDevice));
 	}
 }

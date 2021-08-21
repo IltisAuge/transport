@@ -134,7 +134,7 @@ public class NetworkServer {
 	public void sendMessage(IMessage message, String... channels) {
 		final NetworkManager networkManager = Transport.getInstance().getNetworkManager();
 		final Map<Channel, Set<String>> subscriptions = subcriptionManager.getSubscriptions();
-		for (String channel : message.getChannels()) {
+		for (String channel : channels) {
 			for (Entry<Channel, Set<String>> entry : subscriptions.entrySet()) {
 				if (entry.getValue().contains(channel)) {
 					networkManager.getSession(entry.getKey()).send(message);
