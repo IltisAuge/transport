@@ -20,8 +20,9 @@ import org.json.simple.JSONObject;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
-import de.iltisauge.transport.network.NetworkDevice;
+import de.iltisauge.transport.client.NetworkClient;
 import de.iltisauge.transport.network.Session;
+import de.iltisauge.transport.server.NetworkServer;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.AccessLevel;
@@ -274,14 +275,14 @@ public final class Util {
 		}
 	}
 	
-	public static Session getSession(ChannelHandlerContext ctx, NetworkDevice networkDevice) {
+	public static Session getSession(ChannelHandlerContext ctx, Object networkDevice) {
 		final Channel channel = ctx.channel();
 		SocketAddress clientAddress = null;
 		SocketAddress serverAddress = null;
-		if (networkDevice.equals(NetworkDevice.SERVER)) {
+		if (networkDevice instanceof NetworkServer) {
 			clientAddress = channel.remoteAddress();
 			serverAddress = channel.localAddress();
-		} else if (networkDevice.equals(NetworkDevice.CLIENT)) {
+		} else if (networkDevice instanceof NetworkClient) {
 			clientAddress = channel.localAddress();
 			serverAddress = channel.remoteAddress();
 		}

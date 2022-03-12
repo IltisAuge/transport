@@ -8,6 +8,12 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 
+/**
+ * This {@link IMessage} is used to send some text.
+ * 
+ * @author Daniel Ziegler
+ *
+ */
 @AllArgsConstructor
 @Getter
 @Setter

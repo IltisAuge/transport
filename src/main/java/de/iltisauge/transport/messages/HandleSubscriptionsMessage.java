@@ -7,6 +7,12 @@ import io.netty.buffer.ByteBuf;
 import lombok.Getter;
 import lombok.Setter;
 
+/**
+ * This {@link IMessage} is used to handle channel subscriptions on the server.
+ * 
+ * @author Daniel Ziegler
+ *
+ */
 @Getter
 @Setter
 public class HandleSubscriptionsMessage extends Message {

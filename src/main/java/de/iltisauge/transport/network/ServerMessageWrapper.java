@@ -4,27 +4,29 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import de.iltisauge.transport.Transport;
+import io.netty.buffer.ByteBuf;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import lombok.Setter;
-import lombok.ToString;
 
-/**
- * This class implements the {@link IMessage} interface.<br>
- * It contains methods to handle channels and to send the message.
- * 
- * @author Daniel Ziegler
- *
- */
-@Getter
+@RequiredArgsConstructor
 @Setter
-@ToString
-public class Message implements IMessage {
+@Getter
+public class ServerMessageWrapper implements Sendable {
 	
-	private final List<String> channels = new ArrayList<String>();
 	private ISession from;
 	private boolean receiveSelf;
+	private final List<String> channels = new ArrayList<String>();
+	private final String className;
+	/**
+	 * Contains unread class codec.
+	 */
+	private final ByteBuf bufferCopy;
 	
+	public ByteBuf getBufferCopy() {
+		return bufferCopy.copy();
+	}
+
 	/**
 	 * Adds the channel array to the channel list.
 	 */
@@ -39,14 +41,6 @@ public class Message implements IMessage {
 	@Override
 	public void removeChannels(String... channels) {
 		this.channels.removeAll(Arrays.asList(channels));
-	}
-	
-	/**
-	 * Sends this Message to the NetworkServer that will forward it to all clients that have registered the given channels.
-	 */
-	@Override
-	public boolean send(String... channels) {
-		return Transport.getClient().send(this, channels);
 	}
 
 	/**

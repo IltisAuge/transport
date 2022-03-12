@@ -3,6 +3,7 @@ package de.iltisauge.transport.network;
 import java.util.List;
 
 import de.iltisauge.transport.Transport;
+import de.iltisauge.transport.server.NetworkServer;
 import de.iltisauge.transport.utils.PacketUtil;
 import de.iltisauge.transport.utils.Util;
 import io.netty.buffer.ByteBuf;
@@ -11,6 +12,16 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import lombok.RequiredArgsConstructor;
 
+/**
+ * This class extends {@link ByteToMessageDecoder}.<br>
+ * The {@link ByteBuf} will be decoded by reading the class name of the {@link Sendable} first,
+ * followed by the channels to which the message should be send to.<br>
+ * If the network device that decodes the message is a {@link NetworkServer} and the class with the read class name can not be found or no codec is registered for that class,
+ * a {@link ServerMessageWrapper} will be created, with the unread class codec left in the ByteBuf.
+ * 
+ * @author Daniel Ziegler
+ *
+ */
 @RequiredArgsConstructor
 public class MessageDecoder extends ByteToMessageDecoder {
 
@@ -21,19 +32,33 @@ public class MessageDecoder extends ByteToMessageDecoder {
 		if (in instanceof EmptyByteBuf) {
 			return;
 		}
+		final ISession from = Util.getSession(ctx, networkDevice);
 		final String clazzName = PacketUtil.readString(in);
-		final Class<?> clazz = Class.forName(clazzName);
+		Class<?> clazz = null;
+		try {
+			clazz = Class.forName(clazzName);
+		} catch (ClassNotFoundException exception) {
+		}
 		final int length = in.readInt();
 		final String[] channels = new String[length];
 		for (int i = 0; i < length; i++) {
 			channels[i] = PacketUtil.readString(in);
 		}
-		final IMessageCodec<?> codec = Transport.getInstance().getNetworkManager().getCodec(clazz);
-		if (codec != null) {
+		final boolean isReceiveSelf = in.readBoolean();
+		Sendable sendable = null;
+		if ((clazz == null || !Transport.getNetworkManager().isCodecRegistered(clazz)) && networkDevice instanceof NetworkServer) {
+			//System.out.println("Decoding message to ServerMessageWrapper on server side..");
+			final ByteBuf codecBuffer = in.readBytes(in.readableBytes());
+			sendable = new ServerMessageWrapper(clazzName, codecBuffer);
+		} else {
+			//System.out.println("Decoding message to IMessage on " + (networkDevice instanceof NetworkServer ? "server" : "client") + " side..");
+			final IMessageCodec<?> codec = Transport.getNetworkManager().getCodec(clazz);
 			final IMessage packet = (IMessage) codec.read(in);
-			packet.setFrom(Util.getSession(ctx, networkDevice));
-			packet.addChannels(channels);
-			out.add(packet);
+			sendable = packet;
 		}
+		sendable.setFrom(from);
+		sendable.addChannels(channels);
+		sendable.setReceiveSelf(isReceiveSelf);
+		out.add(sendable);
 	}
 }

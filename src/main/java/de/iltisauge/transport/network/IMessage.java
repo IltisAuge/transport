@@ -1,16 +1,12 @@
 package de.iltisauge.transport.network;
 
-import java.util.List;
-
-public interface IMessage {
-	
-	ISession getFrom();
-	
-	void setFrom(ISession session);
-
-	List<String> getChannels();
-	
-	void addChannels(String... channels);
+/**
+ * This interface extends {@link Sendable} and can be used to create message classes.
+ * 
+ * @author Daniel Ziegler
+ *
+ */
+public interface IMessage extends Sendable {
 	
 	boolean send(String... channels);
 }

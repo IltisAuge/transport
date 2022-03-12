@@ -7,194 +7,199 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.logging.Level;
 
+import de.iltisauge.transport.Transport;
 import de.iltisauge.transport.messages.HandleSubscriptionsMessage;
-import de.iltisauge.transport.messages.HandleSubscriptionsMessage.HandleSubscriptionType;
-import de.iltisauge.transport.messages.TextMessage;
-import io.netty.channel.Channel;
+import de.iltisauge.transport.utils.CastUtil;
 
+/**
+ * This class handles many caches and network stuff.
+ * All caches in this class are accessed in a thread-safe manner.
+ * 
+ * @author Daniel Ziegler
+ *
+ */
 public class NetworkManager {
 	
-	private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
+	//private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 	private final Map<Class<?>, IMessageCodec<?>> codecs = new HashMap<Class<?>, IMessageCodec<?>>();
 	private final Map<Class<?>, List<IMessageEvent<?>>> clazzBoundEvents = new HashMap<Class<?>, List<IMessageEvent<?>>>();
 	private final Set<IMessageEvent<?>> nonboundEvents = new HashSet<IMessageEvent<?>>();
-	private final Map<Channel, ISession> sessions = new HashMap<Channel, ISession>();
-	private final Set<String> subscriptions = new HashSet<String>();
 	
+	/**
+	 * Registers the default message codecs.
+	 */
 	public void registerDefaultCodecs() {
-		registerCodec(TextMessage.class, TextMessage.CODEC);
 		registerCodec(HandleSubscriptionsMessage.class, HandleSubscriptionsMessage.CODEC);
 	}
 	
+	/**
+	 * Unregisters the default message codecs.
+	 */
+	public void unregisterDefaultCodecs() {
+		unregisterCodec(HandleSubscriptionsMessage.class);
+	}
+	
+	/**
+	 * Registers a {@link IMessageCodec} with a {@link Class} as the identifier.<br>
+	 * @param clazz
+	 * @param codec
+	 */
 	public void registerCodec(Class<?> clazz, IMessageCodec<?> codec) {
-		lock.writeLock().lock();
-		try {
+		synchronized (codecs) {
 			codecs.put(clazz, codec);
-		} finally {
-			lock.writeLock().unlock();
 		}
 	}
 	
+	/**
+	 * Unregisters a {@link IMessageCodec} by the {@link Class} identifier.<br>
+	 * @param clazz
+	 */
 	public void unregisterCodec(Class<?> clazz) {
-		lock.writeLock().lock();
-		try {
+		synchronized (codecs) {
 			codecs.remove(clazz);
-		} finally {
-			lock.writeLock().unlock();
 		}
 	}
 	
+	/**
+	 * Checks if the codec cache contains the given class in its keyset.
+	 * @param clazz
+	 * @return true, if the codec is registered, otherwise false.
+	 */
+	public boolean isCodecRegistered(Class<?> clazz) {
+		synchronized (codecs) {
+			return codecs.containsKey(clazz);
+		}
+	}
+	
+	/**
+	 * 
+	 * @param clazz
+	 * @return the {@link IMessageCodec} that is registered for the given class or null.
+	 */
 	public IMessageCodec<?> getCodec(Class<?> clazz) {
-		lock.readLock().lock();
-		try {
-			final IMessageCodec<?> codec = codecs.get(clazz);
-			if (codec == null) {
-				System.out.println("No packet codec is registered for class " + clazz.getName());
-				return null;
-			}
-			return codec;
-		} finally {
-			lock.readLock().unlock();
+		IMessageCodec<?> codec = null;
+		synchronized (codecs) {
+			codec = codecs.get(clazz);
 		}
+		if (codec == null) {
+			Transport.getLogger().log(Level.WARNING, "No packet codec is registered for class " + clazz.getName());
+			return null;
+		}
+		return codec;
 	}
 	
+	/**
+	 * Registers a new {@link IMessageEvent} that is not bound to a specific class.<br>
+	 * That causes the event to be fired for every sent and received message.
+	 * @param event
+	 */
 	public void registerEvent(IMessageEvent<?> event) {
-		lock.writeLock().lock();
-		try {
+		synchronized (nonboundEvents) {
 			nonboundEvents.add(event);
-		} finally {
-			lock.writeLock().unlock();
 		}
 	}
 	
+	/**
+	 * Unregisters a {@link IMessageEvent} that is not bound to a specific class.
+	 * @param event
+	 */
 	public void unregisterEvent(IMessageEvent<?> event) {
-		lock.writeLock().lock();
-		try {
+		synchronized (nonboundEvents) {
 			nonboundEvents.remove(event);
-		} finally {
-			lock.writeLock().unlock();
 		}
 	}
 	
+	/**
+	 * Registers a new {@link IMessageEvent} for the given class.<br>
+	 * The event will be fired on every sent and received message that is an instance of the given class.
+	 * @param clazz
+	 * @param event
+	 */
 	public void registerEvent(Class<?> clazz, IMessageEvent<?> event) {
-		lock.writeLock().lock();
-		try {
+		synchronized (clazzBoundEvents) {
 			if (clazzBoundEvents.containsKey(clazz)) {
 				clazzBoundEvents.get(clazz).add(event);
 			} else {
 				clazzBoundEvents.put(clazz, new ArrayList<IMessageEvent<?>>(Arrays.asList(event)));
 			}
-		} finally {
-			lock.writeLock().unlock();
 		}
 	}
 	
+	/**
+	 * Unregisters a {@link IMessageEvent} that is bound to a specific class.
+	 * @param clazz
+	 * @param event
+	 */
 	public void unregisterEvent(Class<?> clazz, IMessageEvent<?> event) {
-		lock.writeLock().lock();
-		try {
+		synchronized (clazzBoundEvents) {
 			clazzBoundEvents.remove(clazz, event);
-		} finally {
-			lock.writeLock().unlock();
 		}
 	}
 
+	/**
+	 * Unregisters all {@link IMessageEvent}s for the given class.
+	 * @param clazz
+	 */
 	public void unregisterEvents(Class<?> clazz) {
-		lock.writeLock().lock();
-		try {
+		synchronized (clazzBoundEvents) {
 			clazzBoundEvents.remove(clazz);
-		} finally {
-			lock.writeLock().unlock();
 		}
 	}
 	
+	/**
+	 * 
+	 * @param clazz
+	 * @return a {@link ArrayList} containing all {@link IMessageEvent}s that are registered for the given class.<br>
+	 * If no events are registered for that class an empty list will be returned.
+	 */
 	public List<IMessageEvent<?>> getEvents(Class<?> clazz) {
-		lock.readLock().lock();
-		try {
-			final List<IMessageEvent<?>> out = new ArrayList<IMessageEvent<?>>();
-			final List<IMessageEvent<?>> events = this.clazzBoundEvents.get(clazz);
-			if (events != null) {
-				out.addAll(events);
-			}
-			return out;
-		} finally {
-			lock.readLock().unlock();
+		final List<IMessageEvent<?>> out = new ArrayList<IMessageEvent<?>>();
+		List<IMessageEvent<?>> events = null;
+		synchronized (clazzBoundEvents) {
+			events = clazzBoundEvents.get(clazz);
 		}
+		if (events != null) {
+			out.addAll(events);
+		}
+		return out;
 	}
 
+	/**
+	 * 
+	 * @return a {@link ArrayList} containing all {@link IMessageEvent}s that are not bound to a specific class.<br>
+	 * If no non-bound events are registered an empty list will be returned.
+	 */
 	public List<IMessageEvent<?>> getEvents() {
-		lock.readLock().lock();
-		try {
+		synchronized (nonboundEvents) {
 			return new ArrayList<IMessageEvent<?>>(nonboundEvents);
-		} finally {
-			lock.readLock().unlock();
 		}
 	}
 	
-	public void registerSession(ISession session) {
-		lock.writeLock().lock();
-		try {
-			sessions.put(session.getChannel(), session);
-			System.out.println("Registered session " + session);
-		} finally {
-			lock.writeLock().unlock();
-		}
-	}
-
-	public void unregisterSession(ISession session) {
-		lock.writeLock().lock();
-		try {
-			sessions.remove(session.getChannel());
-			System.out.println("Unregistered session " + session);
-		} finally {
-			lock.writeLock().unlock();
-		}
-	}
-
-	public List<ISession> getSessions() {
-		lock.readLock().lock();
-		try {
-			return new ArrayList<ISession>(sessions.values());
-		} finally {
-			lock.readLock().unlock();
-		}
-	}
-	
-	public ISession getSession(Channel channel) {
-		lock.readLock().lock();
-		try {
-			final ISession session = sessions.get(channel);
-			if (session == null) {
-				System.out.println("No session is registered for channel " + channel.toString());
-				return null;
+	/**
+	 * This method fires all {@link IMessageEvent}s that are registered for the objects {@link Class}
+	 * and all non-bound events.
+	 * @param object
+	 */
+	public void fireMessageEvents(IMessage object) {
+		final List<IMessageEvent<?>> classBoundedEvents = getEvents(object.getClass());
+		if (classBoundedEvents != null) {
+			for (IMessageEvent<?> event : classBoundedEvents) {
+				event.onReceived(CastUtil.cast(object));
 			}
-			return session;
-		} finally {
-			lock.readLock().unlock();
+		}
+		final List<IMessageEvent<?>> nonBoundedEvents = getEvents();
+		if (nonBoundedEvents != null) {
+			for (IMessageEvent<?> event : nonBoundedEvents) {
+				event.onReceived(CastUtil.cast(object));
+			}
 		}
 	}
-	
-	public boolean isSubscribed(String channel) {
-		return subscriptions.contains(channel);
-	}
-	
-	
-	public List<String> getSubscriptions() {
-		return new ArrayList<String>(subscriptions);
-	}
-	
-	public void addSubscriptions(String... channels) {
-		subscriptions.addAll(Arrays.asList(channels));
-		final HandleSubscriptionsMessage packet = new HandleSubscriptionsMessage(HandleSubscriptionType.ADD, channels);
-		packet.send("handle-subscriptions");
-	}
-	
-	public void removeSubscriptions(String... channels) {
-		subscriptions.removeAll(Arrays.asList(channels));
-		final HandleSubscriptionsMessage packet = new HandleSubscriptionsMessage(HandleSubscriptionType.REMOVE, channels);
-		packet.send("handle-subscriptions");
-	}
 
+	/**
+	 * This method is called when a {@link ISession} gets inactive.
+	 * @param session
+	 */
 	public void onSessionInactive(ISession session) { }
 }
