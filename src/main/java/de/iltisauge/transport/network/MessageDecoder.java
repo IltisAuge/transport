@@ -47,14 +47,11 @@ public class MessageDecoder extends ByteToMessageDecoder {
 		final boolean isReceiveSelf = in.readBoolean();
 		Sendable sendable = null;
 		if ((clazz == null || !Transport.getNetworkManager().isCodecRegistered(clazz)) && networkDevice instanceof NetworkServer) {
-			//System.out.println("Decoding message to ServerMessageWrapper on server side..");
 			final ByteBuf codecBuffer = in.readBytes(in.readableBytes());
 			sendable = new ServerMessageWrapper(clazzName, codecBuffer);
 		} else {
-			//System.out.println("Decoding message to IMessage on " + (networkDevice instanceof NetworkServer ? "server" : "client") + " side..");
 			final IMessageCodec<?> codec = Transport.getNetworkManager().getCodec(clazz);
-			final IMessage packet = (IMessage) codec.read(in);
-			sendable = packet;
+			sendable = (IMessage) codec.read(in);
 		}
 		sendable.setFrom(from);
 		sendable.addChannels(channels);

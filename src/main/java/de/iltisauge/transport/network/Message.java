@@ -11,7 +11,8 @@ import lombok.ToString;
 
 /**
  * This class implements the {@link IMessage} interface.<br>
- * It contains methods to handle channels and to send the message.
+ * It contains methods to handle channels and to send the message.<br>
+ * If you want to create your own message, you have to extend this class.
  * 
  * @author Daniel Ziegler
  *

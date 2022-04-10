@@ -27,7 +27,7 @@ public class ChannelInboundHandler extends SimpleChannelInboundHandler<Sendable>
 	private final NetworkDevice networkDevice;
 	
 	/**
-	 * This method is called when a connection between a {@link NetworkClient} and the {@link NetworkServer} has been established.
+	 * This method is called when the connection between a {@link NetworkClient} and the {@link NetworkServer} has been established.
 	 */
 	@Override
 	public void channelActive(ChannelHandlerContext ctx) throws Exception {
@@ -48,7 +48,7 @@ public class ChannelInboundHandler extends SimpleChannelInboundHandler<Sendable>
 	}
 	
 	/**
-	 * This method is called when connection between a {@link NetworkClient} and the {@link NetworkServer} has been interrupted. 
+	 * This method is called when the connection between a {@link NetworkClient} and the {@link NetworkServer} has been interrupted. 
 	 */
 	@Override
 	public void channelInactive(ChannelHandlerContext ctx) throws Exception {
@@ -56,9 +56,8 @@ public class ChannelInboundHandler extends SimpleChannelInboundHandler<Sendable>
 		if (Transport.getServer() != null) {
 			Transport.getServer().getNetworkManager().unregisterSession(session);
 		}
-		final NetworkClient networkClient = Transport.getClient();
-		if (networkClient != null) {
-			networkClient.setSession(null);
+		if (Transport.getClient() != null) {
+			Transport.getClient().setSession(null);
 		}
 		Transport.getNetworkManager().onSessionInactive(session);
 		if (networkDevice.isLogTraffic()) {

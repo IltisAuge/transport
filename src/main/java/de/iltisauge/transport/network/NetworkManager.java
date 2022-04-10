@@ -22,7 +22,6 @@ import de.iltisauge.transport.utils.CastUtil;
  */
 public class NetworkManager {
 	
-	//private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 	private final Map<Class<?>, IMessageCodec<?>> codecs = new HashMap<Class<?>, IMessageCodec<?>>();
 	private final Map<Class<?>, List<IMessageEvent<?>>> clazzBoundEvents = new HashMap<Class<?>, List<IMessageEvent<?>>>();
 	private final Set<IMessageEvent<?>> nonboundEvents = new HashSet<IMessageEvent<?>>();
@@ -178,7 +177,7 @@ public class NetworkManager {
 	}
 	
 	/**
-	 * This method fires all {@link IMessageEvent}s that are registered for the objects {@link Class}
+	 * This method fires all {@link IMessageEvent}s that are registered for the object's {@link Class}
 	 * and all non-bound events.
 	 * @param object
 	 */
