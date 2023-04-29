@@ -7,6 +7,5 @@ package de.iltisauge.transport.network;
  *
  */
 public interface IMessage extends Sendable {
-	
-	boolean send(String... channels);
+
 }

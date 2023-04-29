@@ -22,7 +22,7 @@ import lombok.Getter;
 public class SubscriptionManager {
 	
 	@Getter
-	private final Map<Channel, Set<String>> subscriptions = new HashMap<Channel, Set<String>>();
+	private final Map<ISession, Set<String>> subscriptions = new HashMap<>();
 	
 	/**
 	 * Adds one or multiple channel subscription/s for the given session.
@@ -30,12 +30,11 @@ public class SubscriptionManager {
 	 * @param channels
 	 */
 	public void addSubscriptions(ISession session, String... channels) {
-		final Channel channel = session.getChannel();
 		synchronized (subscriptions) {
-			if (subscriptions.containsKey(channel)) {
-				subscriptions.get(channel).addAll(Arrays.asList(channels));
+			if (subscriptions.containsKey(session)) {
+				subscriptions.get(session).addAll(Arrays.asList(channels));
 			} else {
-				subscriptions.put(channel, new HashSet<String>(Arrays.asList(channels)));
+				subscriptions.put(session, new HashSet<>(Arrays.asList(channels)));
 			}
 		}
 	}
@@ -46,10 +45,9 @@ public class SubscriptionManager {
 	 * @param channels
 	 */
 	public void removeSubscriptions(ISession session, String... channels) {
-		final Channel channel = session.getChannel();
 		synchronized (subscriptions) {
-			if (subscriptions.containsKey(channel)) {
-				subscriptions.get(channel).removeAll(Arrays.asList(channels));
+			if (subscriptions.containsKey(session)) {
+				subscriptions.get(session).removeAll(Arrays.asList(channels));
 			}
 		}
 	}
@@ -72,7 +70,7 @@ public class SubscriptionManager {
 	 */
 	public List<String> getSubscriptions(ISession session) {
 		final Channel channel = session.getChannel();
-		final List<String> out = new ArrayList<String>();
+		final List<String> out = new ArrayList<>();
 		synchronized (subscriptions) {
 			final Set<String> subscriptions = this.subscriptions.get(channel);
 			if (subscriptions != null) {

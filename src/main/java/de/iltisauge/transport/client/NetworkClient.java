@@ -6,18 +6,15 @@ import java.io.InputStreamReader;
 import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import java.util.Arrays;
+import java.util.logging.*;
+import java.util.stream.Collectors;
 
 import de.iltisauge.transport.Transport;
 import de.iltisauge.transport.messages.TextMessage;
-import de.iltisauge.transport.network.ChannelInitializer;
-import de.iltisauge.transport.network.IMessage;
-import de.iltisauge.transport.network.IMessageEvent;
-import de.iltisauge.transport.network.ISession;
-import de.iltisauge.transport.network.NetworkDevice;
-import de.iltisauge.transport.network.NetworkManager;
+import de.iltisauge.transport.network.*;
 import de.iltisauge.transport.server.NetworkServer;
+import de.iltisauge.transport.utils.ConsoleLoggingFormatter;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -44,6 +41,8 @@ public class NetworkClient extends NetworkDevice {
 	 */
 	public static void main(String[] args) {
 		final Logger logger = Logger.getLogger("transport");
+		logger.addHandler(new ConsoleLoggingFormatter());
+		logger.setUseParentHandlers(false);
 		Transport.setLogger(logger);
 		final String address = System.getProperty("server-address", "127.0.0.1");
 		final Integer port = Integer.valueOf(System.getProperty("server-port", "8917"));
@@ -55,36 +54,21 @@ public class NetworkClient extends NetworkDevice {
 			System.exit(0);
 			return;
 		}
-		Transport.getNetworkManager().registerCodec(TextMessage.class, TextMessage.CODEC);
-		Transport.getNetworkManager().registerEvent(TextMessage.class, new IMessageEvent<TextMessage>() {
-			
-			@Override
-			public void onReceived(TextMessage message) {
-				System.out.println("Received TextMessage: " + message.getText());
-			}
-			
-			@Override
-			public void onSent(TextMessage message) {
-				System.out.println("Sent TextMessage: " + message.getText());
-			}
-		});
-		new Thread(new Runnable() {
-			
-			@Override
-			public void run() {
-				final BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
-				String line = null;
-				try {
-					while ((line = reader.readLine()) != null) {
-						if (line.startsWith("stop")) {
-							System.exit(0);
-						} else {
-							new TextMessage(line).send("text-message");
-						}
+		new Thread(() -> {
+			final BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+			String line = null;
+			try {
+				while ((line = reader.readLine()) != null) {
+					if (line.startsWith("stop")) {
+						System.exit(0);
+					} else {
+						final TextMessage textMessage = new TextMessage(line);
+						textMessage.setReceiveSelf(true);
+						textMessage.send("text-message");
 					}
-				} catch (IOException exception) {
-					exception.printStackTrace();
 				}
+			} catch (IOException exception) {
+				exception.printStackTrace();
 			}
 		}).start();
 	}
@@ -106,6 +90,7 @@ public class NetworkClient extends NetworkDevice {
 	 */
 	@Override
 	public void initialize() {
+		Transport.setNetworkManager(networkManager);
 		networkManager.registerDefaultCodecs();
 		eventLoopGroup = new NioEventLoopGroup();
 		bootstrap = new Bootstrap();
@@ -126,27 +111,22 @@ public class NetworkClient extends NetworkDevice {
 		Transport.getLogger().log(Level.INFO, "Connecting to NetworkServer on " + address.toString() + "...");
 		setLogTraffic(logTraffic);
 		Transport.getLogger().log(Level.INFO, (logTraffic ? "Logging" : "Not logging") + " traffic");
-		Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
-			
-			@Override
-			public void run() {
-				if (!isConnected()) {
+		Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+			if (!isConnected()) {
+				return;
+			}
+			shutdown();
+		}));
+		networkManager.registerCodec(TextMessage.class, TextMessage.CODEC);
+		registerEvents();
+		try {
+			return bootstrap.connect(address).syncUninterruptibly().addListener(future -> {
+				if (future.cause() != null) {
+					future.cause().printStackTrace();
 					return;
 				}
-				shutdown();
-			}
-		}));
-		try {
-			return bootstrap.connect(address).syncUninterruptibly().addListener(new GenericFutureListener<Future<? super Void>>() {
-				
-				public void operationComplete(Future<? super Void> future) throws Exception {
-					if (future.cause() != null) {
-						future.cause().printStackTrace();
-						return;
-					}
-					isRunning = true;
-					onStarted();
-				};
+				isRunning = true;
+				onStarted();
 			}).isSuccess();
 		} catch (Exception exception) {
 			if (exception instanceof ConnectException && exception.getMessage().contains("Connection refused: no further information")) {
@@ -157,6 +137,35 @@ public class NetworkClient extends NetworkDevice {
 		}
 		return false;
 	}
+
+	private void registerEvents() {
+		if (isLogTraffic()) {
+			networkManager.registerEvent(new IMessageEvent<IMessage>() {
+
+				@Override
+				public void onReceived(IMessage message) {
+					Transport.getLogger().log(Level.INFO, "[<-] " + message.getClass().getName() + " Channels: " + Arrays.asList(message.getChannels()).stream().collect(Collectors.joining(", ")));
+				}
+
+				@Override
+				public void onSent(IMessage message) {
+					Transport.getLogger().log(Level.INFO, "[->] " + message.getClass().getName() + " Channels: " + Arrays.asList(message.getChannels()).stream().collect(Collectors.joining(", ")));
+				}
+			});
+		}
+		networkManager.registerEvent(TextMessage.class, new IMessageEvent<TextMessage>() {
+
+			@Override
+			public void onReceived(TextMessage message) {
+				Transport.getLogger().log(Level.INFO, "Received TextMessage: " + message.getText());
+			}
+
+			@Override
+			public void onSent(TextMessage message) {
+				Transport.getLogger().log(Level.INFO, "Sent TextMessage: " + message.getText());
+			}
+		});
+	}
 	
 	/**
 	 * This method is called when the client has established a connection to the server.
@@ -164,6 +173,7 @@ public class NetworkClient extends NetworkDevice {
 	@Override
 	public void onStarted() {
 		Transport.getLogger().log(Level.INFO, "Successfully connected to NetworkServer on " + address.toString());
+		networkManager.addSubscriptions("text-message");
 	}
 	
 	/**

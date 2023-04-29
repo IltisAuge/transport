@@ -5,23 +5,20 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import java.util.logging.*;
+import java.util.stream.Collectors;
 
 import de.iltisauge.transport.Transport;
 import de.iltisauge.transport.client.NetworkClient;
 import de.iltisauge.transport.messages.HandleSubscriptionsMessage;
 import de.iltisauge.transport.messages.HandleSubscriptionsMessage.HandleSubscriptionType;
-import de.iltisauge.transport.network.ChannelInitializer;
-import de.iltisauge.transport.network.IMessage;
-import de.iltisauge.transport.network.IMessageEvent;
-import de.iltisauge.transport.network.ISession;
-import de.iltisauge.transport.network.NetworkDevice;
-import de.iltisauge.transport.network.NetworkManager;
-import de.iltisauge.transport.network.ServerMessageWrapper;
+import de.iltisauge.transport.messages.TextMessage;
+import de.iltisauge.transport.network.*;
+import de.iltisauge.transport.utils.ConsoleLoggingFormatter;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
@@ -49,6 +46,8 @@ public class NetworkServer extends NetworkDevice {
 	 */
 	public static void main(String[] args) {
 		final Logger logger = Logger.getLogger("transport");
+		logger.addHandler(new ConsoleLoggingFormatter());
+		logger.setUseParentHandlers(false);
 		Transport.setLogger(logger);
 		final SubscriptionManager subscriptionManager = new SubscriptionManager();
 		final String address = System.getProperty("server-address", "127.0.0.1");
@@ -60,21 +59,17 @@ public class NetworkServer extends NetworkDevice {
 			System.exit(0);
 			return;
 		}
-		new Thread(new Runnable() {
-			
-			@Override
-			public void run() {
-				final BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
-				String line = null;
-				try {
-					while ((line = reader.readLine()) != null) {
-						if (line.startsWith("stop")) {
-							System.exit(0);
-						}
+		new Thread(() -> {
+			final BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+			String line = null;
+			try {
+				while ((line = reader.readLine()) != null) {
+					if (line.startsWith("stop")) {
+						System.exit(0);
 					}
-				} catch (IOException exception) {
-					exception.printStackTrace();
 				}
+			} catch (IOException exception) {
+				exception.printStackTrace();
 			}
 		}).start();
 	}
@@ -83,7 +78,7 @@ public class NetworkServer extends NetworkDevice {
 	private final ServerNetworkManager networkManager;
 	private final SubscriptionManager subcriptionManager;
 	/**
-	 * Represents the address that the server will get bounded to.
+	 * Represents the address that the server will be bound to.
 	 */
 	private final SocketAddress address;
 	private NioEventLoopGroup bossGroup = null;
@@ -97,6 +92,7 @@ public class NetworkServer extends NetworkDevice {
 	 */
 	@Override
 	public void initialize() {
+		Transport.setNetworkManager(networkManager);
 		networkManager.registerDefaultCodecs();
 		bossGroup = new NioEventLoopGroup();
 		workerGroup = new NioEventLoopGroup();
@@ -108,8 +104,52 @@ public class NetworkServer extends NetworkDevice {
 		final ChannelInitializer channelInitializer = new ChannelInitializer(this);
 		serverBootstrap.handler(channelInitializer);
 		serverBootstrap.childHandler(channelInitializer);
+	}
+
+	/**
+	 * This method starts the NetworkServer.
+	 * Decide whether you want to log all in-/outbound packets and connections.
+	 * @param logTraffic
+	 * @return true, if the server has been successfully bound to the given address, otherwise false.
+	 */
+	@Override
+	public boolean start(boolean logTraffic) {
+		Transport.getLogger().log(Level.INFO, "Starting up NetworkServer on " + address.toString() + "...");
+		setLogTraffic(logTraffic);
+		Transport.getLogger().log(Level.INFO, (logTraffic ? "Logging" : "Not logging") + " traffic");
+		Runtime.getRuntime().addShutdownHook(new Thread(() -> shutdown()));
+		registerEvents();
+		try {
+			return serverBootstrap.bind(address).syncUninterruptibly().addListener(future -> {
+				if (future.cause() != null) {
+					future.cause().printStackTrace();
+				}
+				isRunning = true;
+				onStarted();
+			}).syncUninterruptibly().isSuccess();
+		} catch(Exception exception) {
+			Transport.getLogger().log(Level.WARNING, "An error occurred while binding the network server to " + address.toString(), exception);
+		}
+		return false;
+	}
+
+	private void registerEvents() {
+		if (isLogTraffic()) {
+			networkManager.registerEvent(new IMessageEvent<IMessage>() {
+
+				@Override
+				public void onReceived(IMessage message) {
+					Transport.getLogger().log(Level.INFO, "[<-] " + message.getClass().getName() + " Channels: " + Arrays.asList(message.getChannels()).stream().collect(Collectors.joining(", ")));
+				}
+
+				@Override
+				public void onSent(IMessage message) {
+					Transport.getLogger().log(Level.INFO, "[->] " + message.getClass().getName() + " Channels: " + Arrays.asList(message.getChannels()).stream().collect(Collectors.joining(", ")));
+				}
+			});
+		}
 		networkManager.registerEvent(HandleSubscriptionsMessage.class, new IMessageEvent<HandleSubscriptionsMessage>() {
-			
+
 			@Override
 			public void onReceived(HandleSubscriptionsMessage message) {
 				final HandleSubscriptionType handleSubscriptionType = message.getHandleSubscriptionType();
@@ -120,41 +160,6 @@ public class NetworkServer extends NetworkDevice {
 				}
 			}
 		});
-	}
-
-	/**
-	 * This method starts the NetworkServer.
-	 * Decide whether you want to log all in-/outbound packets and connections.
-	 * @param logTraffic
-	 * @return true, if the server has been successfully binded to the given address, otherwise false.
-	 */
-	@Override
-	public boolean start(boolean logTraffic) {
-		Transport.getLogger().log(Level.INFO, "Starting up NetworkServer on " + address.toString() + "...");
-		setLogTraffic(logTraffic);
-		Transport.getLogger().log(Level.INFO, (logTraffic ? "Logging" : "Not logging") + " traffic");
-		Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
-			
-			@Override
-			public void run() {
-				shutdown();
-			}
-		}));
-		try {
-			return serverBootstrap.bind(address).syncUninterruptibly().addListener(new GenericFutureListener<Future<? super Void>>() {
-			
-				public void operationComplete(Future<? super Void> future) throws Exception {
-					if (future.cause() != null) {
-						future.cause().printStackTrace();
-					}
-					isRunning = true;
-					onStarted();
-				};
-			}).syncUninterruptibly().isSuccess();
-		} catch(Exception exception) {
-			Transport.getLogger().log(Level.WARNING, "An error occurred while binding the network server to " + address.toString(), exception);
-		}
-		return false;
 	}
 
 	/**
@@ -180,16 +185,16 @@ public class NetworkServer extends NetworkDevice {
 	 * @param message
 	 */
 	public void forwardMessage(ServerMessageWrapper message) {
-		final Map<Channel, Set<String>> subscriptions = subcriptionManager.getSubscriptions();
+		final Map<ISession, Set<String>> subscriptions = subcriptionManager.getSubscriptions();
 		for (String channel : message.getChannels()) {
-			for (Entry<Channel, Set<String>> entry : subscriptions.entrySet()) {
+			for (Entry<ISession, Set<String>> entry : subscriptions.entrySet()) {
 				if (!entry.getValue().contains(channel)) {
 					continue;
 				}
 				if (entry.getKey().equals(message.getFrom().getChannel()) && !message.isReceiveSelf()) {
 					continue;
 				}
-				entry.getKey().writeAndFlush(message);
+				entry.getKey().send(message, isLogTraffic());
 			}
 		}
 	}

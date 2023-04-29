@@ -12,7 +12,7 @@ import lombok.Setter;
 @RequiredArgsConstructor
 @Setter
 @Getter
-public class ServerMessageWrapper implements Sendable {
+public class ServerMessageWrapper extends Message {
 	
 	private ISession from;
 	private boolean receiveSelf;

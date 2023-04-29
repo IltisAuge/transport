@@ -1,12 +1,7 @@
 package de.iltisauge.transport.network;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.lang.reflect.Method;
+import java.util.*;
 import java.util.logging.Level;
 
 import de.iltisauge.transport.Transport;
@@ -22,9 +17,10 @@ import de.iltisauge.transport.utils.CastUtil;
  */
 public class NetworkManager {
 	
-	private final Map<Class<?>, IMessageCodec<?>> codecs = new HashMap<Class<?>, IMessageCodec<?>>();
-	private final Map<Class<?>, List<IMessageEvent<?>>> clazzBoundEvents = new HashMap<Class<?>, List<IMessageEvent<?>>>();
-	private final Set<IMessageEvent<?>> nonboundEvents = new HashSet<IMessageEvent<?>>();
+	private final Map<Class<?>, IMessageCodec<?>> codecs = new HashMap<>();
+	private final Map<Class<?>, Map<IMessageEvent<?>, Integer>> clazzBoundEvents = new HashMap<>();
+	private final Map<IMessageEvent<?>, Integer> notBoundEvents = new HashMap<>();
+	private Integer latestEventPriority = 0;
 	
 	/**
 	 * Registers the default message codecs.
@@ -95,8 +91,13 @@ public class NetworkManager {
 	 * @param event
 	 */
 	public void registerEvent(IMessageEvent<?> event) {
-		synchronized (nonboundEvents) {
-			nonboundEvents.add(event);
+		Integer priority = null;
+		synchronized (latestEventPriority) {
+			priority = latestEventPriority;
+			latestEventPriority++;
+		}
+		synchronized (notBoundEvents) {
+			notBoundEvents.put(event, priority);
 		}
 	}
 	
@@ -105,8 +106,8 @@ public class NetworkManager {
 	 * @param event
 	 */
 	public void unregisterEvent(IMessageEvent<?> event) {
-		synchronized (nonboundEvents) {
-			nonboundEvents.remove(event);
+		synchronized (notBoundEvents) {
+			notBoundEvents.remove(event);
 		}
 	}
 	
@@ -117,11 +118,19 @@ public class NetworkManager {
 	 * @param event
 	 */
 	public void registerEvent(Class<?> clazz, IMessageEvent<?> event) {
+		Integer priority = null;
+		synchronized (latestEventPriority) {
+			priority = latestEventPriority;
+			latestEventPriority++;
+		}
 		synchronized (clazzBoundEvents) {
 			if (clazzBoundEvents.containsKey(clazz)) {
-				clazzBoundEvents.get(clazz).add(event);
+				final Map<IMessageEvent<?>, Integer> map = clazzBoundEvents.get(clazz);
+				map.put(event, priority);
 			} else {
-				clazzBoundEvents.put(clazz, new ArrayList<IMessageEvent<?>>(Arrays.asList(event)));
+				final Map<IMessageEvent<?>, Integer> map = new HashMap<>();
+				map.put(event, priority);
+				clazzBoundEvents.put(clazz, map);
 			}
 		}
 	}
@@ -153,16 +162,15 @@ public class NetworkManager {
 	 * @return a {@link ArrayList} containing all {@link IMessageEvent}s that are registered for the given class.<br>
 	 * If no events are registered for that class an empty list will be returned.
 	 */
-	public List<IMessageEvent<?>> getEvents(Class<?> clazz) {
-		final List<IMessageEvent<?>> out = new ArrayList<IMessageEvent<?>>();
-		List<IMessageEvent<?>> events = null;
+	public Map<IMessageEvent<?>, Integer> getEvents(Class<?> clazz) {
+		Map<IMessageEvent<?>, Integer> events = null;
 		synchronized (clazzBoundEvents) {
 			events = clazzBoundEvents.get(clazz);
 		}
 		if (events != null) {
-			out.addAll(events);
+			return events;
 		}
-		return out;
+		return new HashMap<>();
 	}
 
 	/**
@@ -170,34 +178,53 @@ public class NetworkManager {
 	 * @return a {@link ArrayList} containing all {@link IMessageEvent}s that are not bound to a specific class.<br>
 	 * If no non-bound events are registered an empty list will be returned.
 	 */
-	public List<IMessageEvent<?>> getEvents() {
-		synchronized (nonboundEvents) {
-			return new ArrayList<IMessageEvent<?>>(nonboundEvents);
+	public Map<IMessageEvent<?>, Integer> getEvents() {
+		synchronized (notBoundEvents) {
+			return notBoundEvents;
 		}
 	}
 	
 	/**
-	 * This method fires all {@link IMessageEvent}s that are registered for the object's {@link Class}
+	 * This method fires all outbound {@link IMessageEvent}s that are registered for the object's {@link Class}
 	 * and all non-bound events.
 	 * @param object
 	 */
-	public void fireMessageEvents(IMessage object) {
-		final List<IMessageEvent<?>> classBoundedEvents = getEvents(object.getClass());
-		if (classBoundedEvents != null) {
-			for (IMessageEvent<?> event : classBoundedEvents) {
-				event.onReceived(CastUtil.cast(object));
-			}
+	public void fireOutboundMessageEvents(Sendable object) {
+		fireMessageEvents(object, false);
+	}
+
+	/**
+	 * This method fires all inbound {@link IMessageEvent}s that are registered for the object's {@link Class}
+	 * and all non-bound events.
+	 * @param object
+	 */
+	public void fireInboundMessageEvents(Sendable object) {
+		fireMessageEvents(object, true);
+	}
+
+	private void fireMessageEvents(Sendable object, boolean isReceive) {
+		final Map<IMessageEvent<?>, Integer> classBoundEvents = getEvents(object.getClass());
+		final Map<IMessageEvent<?>, Integer> notBoundEvents = getEvents();
+		final List<Map.Entry<IMessageEvent<?>, Integer>> list = new ArrayList<>(classBoundEvents.entrySet());
+		list.addAll(notBoundEvents.entrySet());
+		Collections.sort(list, Map.Entry.comparingByValue());
+		final IMessageEvent<?>[] allEvents = new IMessageEvent[classBoundEvents.size() + notBoundEvents.size()];
+		int i = 0;
+		for (Map.Entry<IMessageEvent<?>, Integer> entry : list) {
+			allEvents[i] = entry.getKey();
+			i++;
 		}
-		final List<IMessageEvent<?>> nonBoundedEvents = getEvents();
-		if (nonBoundedEvents != null) {
-			for (IMessageEvent<?> event : nonBoundedEvents) {
+		for (IMessageEvent<?> event : allEvents) {
+			if (isReceive) {
 				event.onReceived(CastUtil.cast(object));
+			} else {
+				event.onSent(CastUtil.cast(object));
 			}
 		}
 	}
 
 	/**
-	 * This method is called when a {@link ISession} gets inactive.
+	 * This method is called when a {@link ISession} becomes inactive.
 	 * @param session
 	 */
 	public void onSessionInactive(ISession session) { }

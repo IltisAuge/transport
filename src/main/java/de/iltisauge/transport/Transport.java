@@ -15,6 +15,7 @@ public final class Transport {
 	
 	private static NetworkClient CLIENT;
 	private static NetworkServer SERVER;
+	private static NetworkManager NETWORK_MANAGER;
 	private static Logger LOGGER;
 
 	/**
@@ -65,9 +66,18 @@ public final class Transport {
 	
 	/**
 	 * 
-	 * @return the {@link NetworkManager} of the {@link NetworkClient} or the {@link NetworkServer}. If both are null, null is returned.
+	 * @return the {@link NetworkManager} for this transport instance.
 	 */
 	public static NetworkManager getNetworkManager() {
-		return CLIENT != null ? CLIENT.getNetworkManager() : SERVER != null ? SERVER.getNetworkManager() : null;
+		return NETWORK_MANAGER;
+	}
+
+	/**
+	 *
+	 * Sets the {@link NetworkManager} for this transport instance.
+	 * @param networkManager
+	 */
+	public static void setNetworkManager(NetworkManager networkManager) {
+		NETWORK_MANAGER = networkManager;
 	}
 }

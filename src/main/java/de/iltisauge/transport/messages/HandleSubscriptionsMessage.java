@@ -8,7 +8,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * This {@link IMessage} is used to handle channel subscriptions on the server.
+ * This {@link Message} is used to handle channel subscriptions on the server.
  * 
  * @author Daniel Ziegler
  *

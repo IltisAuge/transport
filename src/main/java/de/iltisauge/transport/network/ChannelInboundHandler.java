@@ -1,11 +1,5 @@
 package de.iltisauge.transport.network;
 
-import java.io.IOException;
-import java.net.SocketException;
-import java.util.Arrays;
-import java.util.logging.Level;
-import java.util.stream.Collectors;
-
 import de.iltisauge.transport.Transport;
 import de.iltisauge.transport.client.NetworkClient;
 import de.iltisauge.transport.server.NetworkServer;
@@ -13,6 +7,10 @@ import de.iltisauge.transport.utils.Util;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import lombok.RequiredArgsConstructor;
+
+import java.io.IOException;
+import java.net.SocketException;
+import java.util.logging.Level;
 
 /**
  * This class extends {@link SimpleChannelInboundHandler} and handles all channel activities such as {@link #channelActive(ChannelHandlerContext)},
@@ -82,15 +80,9 @@ public class ChannelInboundHandler extends SimpleChannelInboundHandler<Sendable>
 	 */
 	@Override
 	protected void channelRead0(ChannelHandlerContext ctx, Sendable object) throws Exception {
-		if (networkDevice.isLogTraffic()) {
-			Transport.getLogger().log(Level.INFO, "[<-] " + object.getClass().getName() + " (" + Arrays.asList(object.getChannels()).stream().collect(Collectors.joining(", ")) + ")");
-		}
+		Transport.getNetworkManager().fireInboundMessageEvents(object);
 		if (networkDevice instanceof NetworkServer && object instanceof ServerMessageWrapper) {
 			((NetworkServer) networkDevice).forwardMessage((ServerMessageWrapper) object);
-			return;
-		}
-		if (object instanceof IMessage) {
-			Transport.getNetworkManager().fireMessageEvents((IMessage) object);
 		}
 	}
 }

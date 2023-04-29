@@ -19,7 +19,7 @@ import de.iltisauge.transport.network.NetworkManager;
  */
 public class ClientNetworkManager extends NetworkManager {
 
-	private final Set<String> subscriptions = new HashSet<String>();
+	private final Set<String> subscriptions = new HashSet<>();
 	
 	/**
 	 * 
@@ -38,13 +38,13 @@ public class ClientNetworkManager extends NetworkManager {
 	 */
 	public List<String> getSubscriptions() {
 		synchronized (subscriptions) {
-			return new ArrayList<String>(subscriptions);
+			return new ArrayList<>(subscriptions);
 		}
 	}
 	
 	/**
 	 * Sends a {@link HandleSubscriptionsMessage} message to the server to subscribe the given channels.<br>
-	 * The message will be send through the <code>handle-subscriptions</code> channel.
+	 * The message will be sent through the <code>handle-subscriptions</code> channel.
 	 * @param channels
 	 */
 	public void addSubscriptions(String... channels) {
@@ -57,7 +57,7 @@ public class ClientNetworkManager extends NetworkManager {
 	
 	/**
 	 * Sends a {@link HandleSubscriptionsMessage} message to the server to subscribe the given channels.<br>
-	 * The message will be send through the <code>handle-subscriptions</code> channel.
+	 * The message will be sent through the <code>handle-subscriptions</code> channel.
 	 * @param channels
 	 */
 	public void removeSubscriptions(String... channels) {

@@ -53,4 +53,11 @@ public interface Sendable {
 	 */
 	String[] getChannels();
 
+	/**
+	 * Sends this {@link Sendable} through the session
+	 * @param channels
+	 * @return true, if the action was successful, false otherwise
+	 */
+	boolean send(String... channels);
+
 }

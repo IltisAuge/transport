@@ -31,19 +31,19 @@ public interface ISession {
 	SocketAddress getServerAddress();
 	
 	/**
-	 * Sends the {@link IMessage} through the sessions {@link Channel}.<br>
+	 * Sends the {@link Sendable} through the sessions {@link Channel}.<br>
 	 * Set <code>logTraffic</code> to true if you want to log the sending of the message.
 	 * 
 	 * @param message
 	 * @param logTraffic
 	 * @return
 	 */
-	boolean send(IMessage message, boolean logTraffic);
+	boolean send(Sendable message, boolean logTraffic);
 	
 	/**
-	 * @see #send(IMessage, boolean)
+	 * @see #send(Sendable, boolean)
 	 */
-	default boolean send(IMessage message) {
+	default boolean send(Sendable message) {
 		return send(message, false);
 	}
 }

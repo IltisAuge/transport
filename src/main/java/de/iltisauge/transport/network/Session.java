@@ -25,12 +25,9 @@ public class Session implements ISession {
 	private final SocketAddress serverAddress;
 	
 	@Override
-	public boolean send(IMessage message, boolean logTraffic) {
+	public boolean send(Sendable message, boolean logTraffic) {
 		final boolean success = channel.writeAndFlush(message).syncUninterruptibly().isSuccess();
-		if (logTraffic) {
-			Transport.getLogger().log(Level.INFO, "[->] " + message.getClass().getName() + " (" + Arrays.asList(message.getChannels()).stream().collect(Collectors.joining(", ")) + ")");
-		}
-		Transport.getNetworkManager().fireMessageEvents(message);
+		Transport.getNetworkManager().fireOutboundMessageEvents(message);
 		return success;
 	}
 }

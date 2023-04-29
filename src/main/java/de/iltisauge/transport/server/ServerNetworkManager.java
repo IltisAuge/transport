@@ -25,7 +25,7 @@ public class ServerNetworkManager extends NetworkManager {
 	
 	@Getter
 	private final SubscriptionManager subscriptionManager;
-	private final Map<Channel, ISession> sessions = new HashMap<Channel, ISession>();
+	private final Map<Channel, ISession> sessions = new HashMap<>();
 	
 	public void registerSession(ISession session) {
 		synchronized (sessions) {
@@ -43,7 +43,7 @@ public class ServerNetworkManager extends NetworkManager {
 
 	public List<ISession> getSessions() {
 		synchronized (sessions) {
-			return new ArrayList<ISession>(sessions.values());
+			return new ArrayList<>(sessions.values());
 		}
 	}
 	
